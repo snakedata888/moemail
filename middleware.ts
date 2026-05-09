@@ -4,7 +4,7 @@ import { i18n, type Locale } from "@/i18n/config"
 import { PERMISSIONS } from "@/lib/permissions"
 import { checkPermission } from "@/lib/auth"
 import { Permission } from "@/lib/permissions"
-import { handleApiKeyAuth } from "@/lib/apiKey"
+import { handleApiKeyAuth, setUserIdHeader } from "@/lib/apiKey"
 
 const API_PERMISSIONS: Record<string, Permission> = {
   '/api/emails': PERMISSIONS.MANAGE_EMAIL,
@@ -26,15 +26,42 @@ export async function middleware(request: Request) {
     request.headers.delete("X-User-Id")
     const apiKey = request.headers.get("X-API-Key")
     if (apiKey) {
-      return handleApiKeyAuth(apiKey, pathname)
-    }
+      const authResult = await handleApiKeyAuth(apiKey, pathname)
+      if (!authResult.success) {
+        return NextResponse.json(
+          { error: authResult.error },
+          { status: authResult.status }
+        )
+      }
+      const requestHeaders = await setUserIdHeader(authResult.userId)
+      const response = NextResponse.next({
+        request: {
+          headers: requestHeaders
+        }
+      })
 
-    const session = await auth()
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "未授权" },
-        { status: 401 }
-      )
+      for (const [route, permission] of Object.entries(API_PERMISSIONS)) {
+        if (pathname.startsWith(route)) {
+          const hasAccess = await checkPermission(permission, authResult.userId)
+          if (!hasAccess) {
+            return NextResponse.json(
+              { error: "权限不足" },
+              { status: 403 }
+            )
+          }
+          break
+        }
+      }
+
+      return response
+    } else {
+      const session = await auth()
+      if (!session?.user) {
+        return NextResponse.json(
+          { error: "未授权" },
+          { status: 401 }
+        )
+      }
     }
 
     if (pathname === '/api/config' && request.method === 'GET') {

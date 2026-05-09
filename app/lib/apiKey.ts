@@ -1,7 +1,6 @@
 import { createDb } from "./db"
 import { apiKeys } from "./schema"
 import { eq, and, gt } from "drizzle-orm"
-import { NextResponse } from "next/server"
 import type { User } from "next-auth"
 import { auth } from "./auth"
 import { headers } from "next/headers"
@@ -24,31 +23,34 @@ async function getUserByApiKey(key: string): Promise<User | null> {
   return apiKey.user
 }
 
-export async function handleApiKeyAuth(apiKey: string, pathname: string) {
+export interface ApiKeyAuthResult {
+  success: true
+  userId: string
+}
+
+export interface ApiKeyAuthError {
+  success: false
+  error: string
+  status: number
+}
+
+export async function handleApiKeyAuth(apiKey: string, pathname: string): Promise<ApiKeyAuthResult | ApiKeyAuthError> {
   if (!pathname.startsWith('/api/emails') && !pathname.startsWith('/api/config')) {
-    return NextResponse.json(
-      { error: "无权限查看" },
-      { status: 403 }
-    )
+    return { success: false, error: "无权限查看", status: 403 }
   }
 
   const user = await getUserByApiKey(apiKey)
   if (!user?.id) {
-    return NextResponse.json(
-      { error: "无效的 API Key" },
-      { status: 401 }
-    )
+    return { success: false, error: "无效的 API Key", status: 401 }
   }
 
+  return { success: true, userId: user.id }
+}
+
+export const setUserIdHeader = async (userId: string) => {
   const requestHeaders = new Headers(await headers())
-  requestHeaders.set("X-User-Id", user.id)
-  
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders
-    }
-  })
-  return response
+  requestHeaders.set("X-User-Id", userId)
+  return requestHeaders
 }
 
 export const getUserId = async () => {

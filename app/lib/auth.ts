@@ -64,17 +64,25 @@ export async function assignRoleToUser(db: Db, userId: string, roleId: string) {
     })
 }
 
-export async function getUserRole(userId: string) {
+export async function getUserRole(userId: string): Promise<Role> {
   const db = createDb()
   const userRoleRecords = await db.query.userRoles.findMany({
     where: eq(userRoles.userId, userId),
     with: { role: true },
   })
-  return userRoleRecords[0].role.name
+
+  if (userRoleRecords.length > 0 && userRoleRecords[0].role) {
+    return userRoleRecords[0].role.name as Role
+  }
+
+  const defaultRole = await getDefaultRole()
+  const role = await findOrCreateRole(db, defaultRole)
+  await assignRoleToUser(db, userId, role.id)
+  return defaultRole
 }
 
-export async function checkPermission(permission: Permission) {
-  const userId = await getUserId()
+export async function checkPermission(permission: Permission, explicitUserId?: string) {
+  const userId = explicitUserId || await getUserId()
 
   if (!userId) return false
 
