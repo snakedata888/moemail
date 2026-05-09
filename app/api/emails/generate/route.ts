@@ -16,16 +16,15 @@ export async function POST(request: Request) {
   const db = createDb()
   const env = getRequestContext().env
 
-  const userId = await getUserId()
-  if (!userId) {
-    return NextResponse.json(
-      { error: "未授权" },
-      { status: 401 }
-    )
-  }
-  const userRole = await getUserRole(userId)
-
   try {
+    const userId = await getUserId()
+    if (!userId) {
+      return NextResponse.json(
+        { error: "未授权" },
+        { status: 401 }
+      )
+    }
+    const userRole = await getUserRole(userId)
     if (userRole !== ROLES.EMPEROR) {
       const maxEmails = await env.SITE_CONFIG.get("MAX_EMAILS") || EMAIL_CONFIG.MAX_ACTIVE_EMAILS.toString()
       const activeEmailsCount = await db
@@ -103,8 +102,9 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Failed to generate email:', error)
+    const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { error: "创建邮箱失败" },
+      { error: `创建邮箱失败，${message}` },
       { status: 500 }
     )
   }

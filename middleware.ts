@@ -4,7 +4,7 @@ import { i18n, type Locale } from "@/i18n/config"
 import { PERMISSIONS } from "@/lib/permissions"
 import { checkPermission } from "@/lib/auth"
 import { Permission } from "@/lib/permissions"
-import { handleApiKeyAuth, setUserIdHeader } from "@/lib/apiKey"
+import { handleApiKeyAuth } from "@/lib/apiKey"
 
 const API_PERMISSIONS: Record<string, Permission> = {
   '/api/emails': PERMISSIONS.MANAGE_EMAIL,
@@ -33,12 +33,8 @@ export async function middleware(request: Request) {
           { status: authResult.status }
         )
       }
-      const requestHeaders = await setUserIdHeader(authResult.userId)
-      const response = NextResponse.next({
-        request: {
-          headers: requestHeaders
-        }
-      })
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set("X-User-Id", authResult.userId)
 
       for (const [route, permission] of Object.entries(API_PERMISSIONS)) {
         if (pathname.startsWith(route)) {
@@ -53,7 +49,11 @@ export async function middleware(request: Request) {
         }
       }
 
-      return response
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders
+        }
+      })
     } else {
       const session = await auth()
       if (!session?.user) {

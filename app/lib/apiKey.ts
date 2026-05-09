@@ -47,12 +47,6 @@ export async function handleApiKeyAuth(apiKey: string, pathname: string): Promis
   return { success: true, userId: user.id }
 }
 
-export const setUserIdHeader = async (userId: string) => {
-  const requestHeaders = new Headers(await headers())
-  requestHeaders.set("X-User-Id", userId)
-  return requestHeaders
-}
-
 export const getUserId = async () => {
   const headersList = await headers()
   const userId = headersList.get("X-User-Id")

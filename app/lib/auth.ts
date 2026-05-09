@@ -87,10 +87,17 @@ export async function checkPermission(permission: Permission, explicitUserId?: s
   if (!userId) return false
 
   const db = createDb()
-  const userRoleRecords = await db.query.userRoles.findMany({
+  let userRoleRecords = await db.query.userRoles.findMany({
     where: eq(userRoles.userId, userId),
     with: { role: true },
   })
+
+  if (userRoleRecords.length === 0) {
+    const defaultRole = await getDefaultRole()
+    const role = await findOrCreateRole(db, defaultRole)
+    await assignRoleToUser(db, userId, role.id)
+    userRoleRecords = [{ userId, roleId: role.id, createdAt: new Date(), role }]
+  }
 
   const userRoleNames = userRoleRecords.map(ur => ur.role.name)
   return hasPermission(userRoleNames as Role[], permission)
